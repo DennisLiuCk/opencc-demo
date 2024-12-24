@@ -10,6 +10,10 @@ import javax.annotation.PostConstruct;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+import org.springframework.core.io.ClassPathResource;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 
 @Service
 public class DictionaryService {
@@ -26,33 +30,33 @@ public class DictionaryService {
 
     private void loadDefaultDictionary() {
         try {
-            int index = 1;
-            while (true) {
-                String entryKey = "dict.entry." + index;
-                String entryValue = env.getProperty(entryKey);
-                
-                if (entryValue == null) {
-                    break;
-                }
-                
-                logger.debug("Loading dictionary entry {}: {}", entryKey, entryValue);
-                
-                String[] parts = entryValue.split("\\|");
-                if (parts.length == 4) {
-                    DictionaryEntry entry = new DictionaryEntry(
-                        parts[0].trim(), // original
-                        parts[1].trim(), // simplified
-                        parts[2].trim(), // traditional
-                        parts[3].trim()  // description
-                    );
-                    addEntry(entry);
-                    logger.debug("Successfully loaded entry: {}", entry);
-                } else {
-                    logger.warn("Invalid dictionary entry format for key {}: {}", entryKey, entryValue);
-                }
-                
-                index++;
+            Properties props = new Properties();
+            ClassPathResource resource = new ClassPathResource("dictionary.properties");
+            try (InputStream input = resource.getInputStream()) {
+                props.load(new InputStreamReader(input, StandardCharsets.UTF_8));
             }
+
+            props.stringPropertyNames().stream()
+                .filter(key -> key.startsWith("dict.entry."))
+                .forEach(key -> {
+                    String entryValue = props.getProperty(key);
+                    logger.debug("Loading dictionary entry {}: {}", key, entryValue);
+                    
+                    String[] parts = entryValue.split("\\|");
+                    if (parts.length == 4) {
+                        DictionaryEntry entry = new DictionaryEntry(
+                            parts[0].trim(), // original
+                            parts[1].trim(), // simplified
+                            parts[2].trim(), // traditional
+                            parts[3].trim()  // description
+                        );
+                        addEntry(entry);
+                        logger.debug("Successfully loaded entry: {}", entry);
+                    } else {
+                        logger.warn("Invalid dictionary entry format for key {}: {}", key, entryValue);
+                    }
+                });
+            
             logger.info("Successfully loaded {} dictionary entries", dictionary.size());
         } catch (Exception e) {
             logger.error("Error loading dictionary entries", e);
