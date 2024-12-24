@@ -1,44 +1,62 @@
 package com.example.opencc.service;
 
 import com.example.opencc.model.DictionaryEntry;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 import javax.annotation.PostConstruct;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Service
 public class DictionaryService {
+    private static final Logger logger = LoggerFactory.getLogger(DictionaryService.class);
     private final Map<String, DictionaryEntry> dictionary = new ConcurrentHashMap<>();
+    
+    @Autowired
+    private Environment env;
 
     @PostConstruct
     public void init() {
-        // 載入預設詞典
         loadDefaultDictionary();
     }
 
     private void loadDefaultDictionary() {
-        // 網路用語
-        addEntry(new DictionaryEntry("笑死", "笑死", "笑死", "網路常用語"));
-        addEntry(new DictionaryEntry("666", "666", "666", "形容厲害"));
-        addEntry(new DictionaryEntry("gg", "gg", "gg", "遊戲用語，表示結束"));
-        
-        // 流行用語
-        addEntry(new DictionaryEntry("打工人", "打工人", "打工人", "現代職場用語"));
-        addEntry(new DictionaryEntry("內卷", "内卷", "內卷", "形容競爭激烈"));
-        addEntry(new DictionaryEntry("躺平", "躺平", "躺平", "形容消極態度"));
-        
-        // 網路縮寫
-        addEntry(new DictionaryEntry("稍等", "稍等", "稍等", "等一下的縮寫"));
-        addEntry(new DictionaryEntry("私訊", "私信", "私訊", "私人訊息"));
-        addEntry(new DictionaryEntry("已讀不回", "已读不回", "已讀不回", "看過訊息但不回覆"));
-        
-        // 地方用語
-        addEntry(new DictionaryEntry("歐嗨唷", "欧嗨哟", "歐嗨唷", "台灣用語"));
-        addEntry(new DictionaryEntry("好棒棒", "好棒棒", "好棒棒", "台灣用語"));
-        addEntry(new DictionaryEntry("夭壽", "夭寿", "夭壽", "台灣用語"));
+        try {
+            int index = 1;
+            while (true) {
+                String entryKey = "dict.entry." + index;
+                String entryValue = env.getProperty(entryKey);
+                
+                if (entryValue == null) {
+                    break;
+                }
+                
+                logger.debug("Loading dictionary entry {}: {}", entryKey, entryValue);
+                
+                String[] parts = entryValue.split("\\|");
+                if (parts.length == 4) {
+                    DictionaryEntry entry = new DictionaryEntry(
+                        parts[0].trim(), // original
+                        parts[1].trim(), // simplified
+                        parts[2].trim(), // traditional
+                        parts[3].trim()  // description
+                    );
+                    addEntry(entry);
+                    logger.debug("Successfully loaded entry: {}", entry);
+                } else {
+                    logger.warn("Invalid dictionary entry format for key {}: {}", entryKey, entryValue);
+                }
+                
+                index++;
+            }
+            logger.info("Successfully loaded {} dictionary entries", dictionary.size());
+        } catch (Exception e) {
+            logger.error("Error loading dictionary entries", e);
+        }
     }
 
     public void addEntry(DictionaryEntry entry) {
@@ -58,22 +76,35 @@ public class DictionaryService {
     }
 
     public String convertWithDictionary(String text, boolean toTraditional) {
+        if (text == null || text.isEmpty()) {
+            return text;
+        }
+        
         String result = text;
         for (DictionaryEntry entry : dictionary.values()) {
             if (toTraditional) {
-                result = result.replace(entry.getSimplified(), entry.getTraditional());
+                if (entry.getSimplified() != null && !entry.getSimplified().isEmpty()) {
+                    result = result.replace(entry.getSimplified(), entry.getTraditional());
+                }
             } else {
-                result = result.replace(entry.getTraditional(), entry.getSimplified());
+                if (entry.getTraditional() != null && !entry.getTraditional().isEmpty()) {
+                    result = result.replace(entry.getTraditional(), entry.getSimplified());
+                }
             }
         }
         return result;
     }
 
     public List<DictionaryEntry> searchEntries(String keyword) {
+        if (keyword == null || keyword.isEmpty()) {
+            return getAllEntries();
+        }
+        
         return dictionary.values().stream()
-                .filter(entry -> entry.getOriginal().contains(keyword) ||
-                        entry.getSimplified().contains(keyword) ||
-                        entry.getTraditional().contains(keyword))
+                .filter(entry -> 
+                    (entry.getOriginal() != null && entry.getOriginal().contains(keyword)) ||
+                    (entry.getSimplified() != null && entry.getSimplified().contains(keyword)) ||
+                    (entry.getTraditional() != null && entry.getTraditional().contains(keyword)))
                 .collect(Collectors.toList());
     }
 } 
