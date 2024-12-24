@@ -16,8 +16,7 @@
             font-family: 'Noto Sans TC', sans-serif;
             background: #f8f9fa;
             min-height: 100vh;
-            display: flex;
-            align-items: center;
+            padding: 2rem 0;
         }
 
         .container {
@@ -153,6 +152,81 @@
                 flex-direction: column;
             }
         }
+
+        .dictionary-section {
+            margin-top: 3rem;
+            background: white;
+            border-radius: 16px;
+            box-shadow: var(--card-shadow);
+            padding: 2rem;
+        }
+
+        .dictionary-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .dictionary-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #2c3e50;
+            margin: 0;
+        }
+
+        .dictionary-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin-top: 1rem;
+        }
+
+        .dictionary-table th,
+        .dictionary-table td {
+            padding: 1rem;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .dictionary-table th {
+            font-weight: 600;
+            color: #2c3e50;
+            background: #f8f9fa;
+        }
+
+        .dictionary-form {
+            background: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 12px;
+            margin-bottom: 2rem;
+        }
+
+        .dictionary-form .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .action-btn {
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .action-btn.edit {
+            color: #7C4DFF;
+            background: rgba(124, 77, 255, 0.1);
+            border: none;
+        }
+
+        .action-btn.delete {
+            color: #dc3545;
+            background: rgba(220, 53, 69, 0.1);
+            border: none;
+        }
+
+        .action-btn:hover {
+            transform: translateY(-1px);
+        }
     </style>
 </head>
 <body>
@@ -190,18 +264,60 @@
                 </button>
             </div>
         </div>
+
+        <div class="dictionary-section">
+            <div class="dictionary-header">
+                <h2 class="dictionary-title">自定義詞典管理</h2>
+                <button class="btn btn-primary" onclick="showAddEntryForm()">新增詞條</button>
+            </div>
+
+            <div id="entryForm" class="dictionary-form" style="display: none;">
+                <div class="form-group">
+                    <label class="form-label">原始詞語</label>
+                    <input type="text" class="form-control" id="original">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">簡體</label>
+                    <input type="text" class="form-control" id="simplified">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">繁體</label>
+                    <input type="text" class="form-control" id="traditional">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">描述</label>
+                    <input type="text" class="form-control" id="description">
+                </div>
+                <button class="btn btn-primary" onclick="addEntry()">保存</button>
+                <button class="btn btn-secondary" onclick="hideAddEntryForm()">取消</button>
+            </div>
+
+            <div class="table-responsive">
+                <table class="dictionary-table">
+                    <thead>
+                        <tr>
+                            <th>原始詞語</th>
+                            <th>簡體</th>
+                            <th>繁體</th>
+                            <th>描述</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dictionaryTableBody">
+                        <!-- 詞典內容將通過JavaScript動態載入 -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 
     <script>
         let selectedType = 's2t';
 
         function selectOption(element) {
-            // Remove active class from all options
             document.querySelectorAll('.conversion-option').forEach(opt => {
                 opt.classList.remove('active');
             });
-            
-            // Add active class to selected option
             element.classList.add('active');
             selectedType = element.dataset.value;
         }
@@ -214,7 +330,6 @@
                 return;
             }
             
-            // Show loading state
             const convertBtn = document.querySelector('.convert-btn');
             const originalText = convertBtn.textContent;
             convertBtn.textContent = '轉換中...';
@@ -241,7 +356,6 @@
                 showToast('轉換過程中發生錯誤，請稍後再試！');
             })
             .finally(() => {
-                // Restore button state
                 convertBtn.textContent = originalText;
                 convertBtn.disabled = false;
             });
@@ -259,8 +373,104 @@
             });
         }
 
+        function loadDictionary() {
+            fetch('/api/dictionary')
+                .then(response => response.json())
+                .then(entries => {
+                    const tableBody = document.getElementById('dictionaryTableBody');
+                    tableBody.innerHTML = '';
+                    entries.forEach(entry => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${entry.original}</td>
+                            <td>${entry.simplified}</td>
+                            <td>${entry.traditional}</td>
+                            <td>${entry.description}</td>
+                            <td>
+                                <button class="action-btn delete" onclick="deleteEntry('${entry.original}')">刪除</button>
+                            </td>
+                        `;
+                        tableBody.appendChild(row);
+                    });
+                })
+                .catch(error => {
+                    console.error('Error loading dictionary:', error);
+                    showToast('載入詞典失敗！');
+                });
+        }
+
+        function showAddEntryForm() {
+            document.getElementById('entryForm').style.display = 'block';
+        }
+
+        function hideAddEntryForm() {
+            document.getElementById('entryForm').style.display = 'none';
+            clearForm();
+        }
+
+        function clearForm() {
+            document.getElementById('original').value = '';
+            document.getElementById('simplified').value = '';
+            document.getElementById('traditional').value = '';
+            document.getElementById('description').value = '';
+        }
+
+        function addEntry() {
+            const entry = {
+                original: document.getElementById('original').value,
+                simplified: document.getElementById('simplified').value,
+                traditional: document.getElementById('traditional').value,
+                description: document.getElementById('description').value
+            };
+
+            if (!entry.original || !entry.simplified || !entry.traditional) {
+                showToast('請填寫完整的詞條信息！');
+                return;
+            }
+
+            fetch('/api/dictionary', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(entry)
+            })
+            .then(response => {
+                if (response.ok) {
+                    showToast('新增詞條成功！');
+                    hideAddEntryForm();
+                    loadDictionary();
+                } else {
+                    throw new Error('Failed to add entry');
+                }
+            })
+            .catch(error => {
+                console.error('Error adding entry:', error);
+                showToast('新增詞條失敗！');
+            });
+        }
+
+        function deleteEntry(original) {
+            if (confirm('確定要刪除這個詞條嗎？')) {
+                fetch(`/api/dictionary/${original}`, {
+                    method: 'DELETE'
+                })
+                .then(response => {
+                    if (response.ok) {
+                        showToast('刪除詞條成功！');
+                        loadDictionary();
+                    } else {
+                        throw new Error('Failed to delete entry');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error deleting entry:', error);
+                    showToast('刪除詞條失敗！');
+                });
+            }
+        }
+
         function showToast(message) {
-            // Create toast element
             const toast = document.createElement('div');
             toast.style.cssText = `
                 position: fixed;
@@ -274,15 +484,15 @@
                 z-index: 1000;
             `;
             toast.textContent = message;
-            
-            // Add to body
             document.body.appendChild(toast);
-            
-            // Remove after 3 seconds
             setTimeout(() => {
                 toast.remove();
             }, 3000);
         }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadDictionary();
+        });
     </script>
 </body>
 </html> 
